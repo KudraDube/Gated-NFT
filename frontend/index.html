@@ -6,104 +6,64 @@
   <style>
     body { font-family: sans-serif; max-width: 600px; margin: 40px auto; padding: 0 20px; }
     button { padding: 10px 20px; margin: 8px 4px; cursor: pointer; }
-    input { padding: 8px; width: 100%; box-sizing: border-box; margin: 4px 0 12px; }
     #status { margin-top: 16px; padding: 10px; background: #f0f0f0; border-radius: 4px; word-break: break-all; }
-    label { font-weight: bold; }
   </style>
 </head>
 <body>
-  <h2>ABC NFT Dashboard</h2>
+  <h2>ABC NFT Login</h2>
 
   <button id="connectBtn">Connect Wallet</button>
   <p id="walletAddress">Not connected</p>
 
-  <hr />
-
-  <h3>Contract Info</h3>
-  <button id="loadInfoBtn">Load Info</button>
-  <div id="contractInfo"></div>
-
-  <hr />
-
-  <h3>Check Balance</h3>
-  <label>Address</label>
-  <input id="balanceAddress" placeholder="0x..." />
-  <label>Token ID</label>
-  <input id="balanceTokenId" placeholder="0" type="number" />
-  <button id="checkBalanceBtn">Check Balance</button>
-
-  <hr />
-
-  <h3>Mint (Owner Only)</h3>
-  <label>Recipient Address</label>
-  <input id="mintAddress" placeholder="0x..." />
-  <button id="mintBtn">Mint</button>
+  <button id="signInBtn" disabled>Sign In with NFT</button>
 
   <div id="status">Status: idle</div>
 
   <script src="https://cdn.jsdelivr.net/npm/ethers@6.13.0/dist/ethers.umd.min.js"></script>
   <script>
-    // ── PASTE YOUR DEPLOYED CONTRACT ADDRESS HERE ──
-    const CONTRACT_ADDRESS = "0x1e52c357a067e9e160865e94ac08861f7CEC7062";
-
-    const ABI = [
-      "function name() view returns (string)",
-      "function symbol() view returns (string)",
-      "function nextTokenId() view returns (uint256)",
-      "function owner() view returns (address)",
-      "function balanceOf(address account, uint256 id) view returns (uint256)",
-      "function mint(address to)",
-    ];
-
-    let provider, signer, contract;
+    const API = "http://localhost:3000";
+    let signer;
 
     const status = (msg) => document.getElementById("status").textContent = "Status: " + msg;
 
     document.getElementById("connectBtn").onclick = async () => {
       if (!window.ethereum) return status("MetaMask not found");
-      provider = new ethers.BrowserProvider(window.ethereum);
+      const provider = new ethers.BrowserProvider(window.ethereum);
       await provider.send("eth_requestAccounts", []);
       signer = await provider.getSigner();
-      contract = new ethers.Contract(CONTRACT_ADDRESS, ABI, signer);
       const addr = await signer.getAddress();
       document.getElementById("walletAddress").textContent = "Connected: " + addr;
+      document.getElementById("signInBtn").disabled = false;
       status("Wallet connected");
-    };
+    }; 
 
-    document.getElementById("loadInfoBtn").onclick = async () => {
-      if (!contract) return status("Connect wallet first");
+    document.getElementById("signInBtn").onclick = async () => {
+      if (!signer) return status("Connect wallet first");
       try {
-        const [name, symbol, nextId, owner] = await Promise.all([
-          contract.name(),
-          contract.symbol(),
-          contract.nextTokenId(),
-          contract.owner(),
-        ]);
-        document.getElementById("contractInfo").innerHTML =
-          `<p>Name: ${name}</p><p>Symbol: ${symbol}</p><p>Next Token ID: ${nextId}</p><p>Owner: ${owner}</p>`;
-        status("Info loaded");
-      } catch (e) { status(e.message); }
-    };
+        // 1. Get message from backend
+        status("Fetching sign-in message...");
+        const { message } = await fetch(`${API}/api/message`).then(r => r.json());
 
-    document.getElementById("checkBalanceBtn").onclick = async () => {
-      if (!contract) return status("Connect wallet first");
-      const addr = document.getElementById("balanceAddress").value.trim();
-      const id = document.getElementById("balanceTokenId").value;
-      try {
-        const bal = await contract.balanceOf(addr, id);
-        status(`Balance of token #${id} for ${addr}: ${bal}`);
-      } catch (e) { status(e.message); }
-    };
+        // 2. Ask user to sign it
+        status("Please sign the message in MetaMask...");
+        const signature = await signer.signMessage(message);
 
-    document.getElementById("mintBtn").onclick = async () => {
-      if (!contract) return status("Connect wallet first");
-      const to = document.getElementById("mintAddress").value.trim();
-      try {
-        status("Minting...");
-        const tx = await contract.mint(to);
-        await tx.wait();
-        status(`Minted to ${to} — tx: ${tx.hash}`);
-      } catch (e) { status(e.message); }
+        // 3. Send to backend to verify NFT ownership
+        status("Verifying...");
+        const result = await fetch(`${API}/api/verify`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ message, signature })
+        }).then(r => r.json());
+
+        if (result.access) {
+          status(`✅ Access granted! Welcome, ${result.address}`);
+        } else {
+          status(`❌ Access denied: ${result.reason}`);
+        }
+      } catch (e) {
+        status("Error: " + e.message);
+      }
     };
   </script>
 </body>
