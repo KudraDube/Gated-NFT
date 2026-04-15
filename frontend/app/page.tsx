@@ -2,7 +2,7 @@
 import { useState, useEffect } from "react";
 import { BrowserProvider } from "ethers";
 
-const SERVER = "http://localhost:3001";
+const SERVER = "https://gated-nft.onrender.com";
 
 type Status = "idle" | "connecting" | "checking" | "granted" | "denied" | "error";
 
