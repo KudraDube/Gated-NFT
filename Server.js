@@ -5,11 +5,11 @@ const { ethers } = require('ethers');
 const path = require('path');
 const app = express();
 
-app.use(cors({ origin: 'http://127.0.0.1:5501' }));
+app.use(cors({ origin: ['http://localhost:3000', 'http://127.0.0.1:3000'] }));
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'frontend')));
 
-const PORT = 5501;
+const PORT = 3001;
 
 const CONTRACT_ADDRESS = "0x1e52c357a067e9e160865e94ac08861f7CEC7062";
 const RPC_URL = process.env.SEPOLIA_RPC_URL;
